@@ -1,0 +1,13 @@
+[project]
+name = "microbit"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "microfs>=1.4.5",
+    "mpy-cross>=1.29.0.post2",
+    "pyright>=1.1.414",
+    "uflash>=2.0.0",
+]
