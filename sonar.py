@@ -1,27 +1,17 @@
-from microbit import *
-from time import sleep_us
+"""Sonar:bit ultrasonic distance sensor (ELECFREAKS Smart Science IoT Kit)."""
 from machine import time_pulse_us
+from utime import sleep_us
 
-"""Základný popis
-        Meria vzdialenosť pomocou ultrazvukového senzora Sonar:bit
-        Argumenty:
-        pin_trig (pin): Pin pre Trig signál
-        pin_echo (pin): Pin pre Echo signál
-        Vráti: Vzdialenosť v centimetroch
-"""
-class SonarBit:
-    def __init__(self, pin_d):
-        self.__pin_e = pin_d
-        self.__pin_t = pin_d
 
-    #Zmeria vzdialenosť v centimetroch a vráti ju.
-    def get_distance(self):
-        self.__pin_e.read_digital()
-        self.__pin_t.write_digital(1)
-        sleep_us(10)
-        self.__pin_t.write_digital(0)
-        ts = time_pulse_us(self.__pin_e, 1, 25000)
+def distance_cm(pin):
+    """Return distance in cm (whole number), or -1 if no echo came back.
 
-        vzdialenost = ts * 9 / 6 / 58
-
-        return vzdialenost
+    pin: digital pin the Sonar:bit is connected to (trigger and echo share one pin).
+    """
+    pin.write_digital(0)
+    sleep_us(2)
+    pin.write_digital(1)  # 10 µs trigger pulse
+    sleep_us(10)
+    pin.write_digital(0)
+    t = time_pulse_us(pin, 1, 25000)  # echo length in µs, negative on timeout
+    return -1 if t < 0 else (t + 29) // 58  # sound travels there and back: 58 µs per cm
