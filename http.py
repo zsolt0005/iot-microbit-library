@@ -1,6 +1,8 @@
 """HTTP client (http:// only) over the Wi-Fi module, using wifi.py."""
-import wifi
+
 from microbit import uart
+
+import wifi
 
 
 def request(method, url, body="", timeout=10000, limit=512):
@@ -31,14 +33,14 @@ def request(method, url, body="", timeout=10000, limit=512):
     i = r.find(b"+IPD,")
     while i >= 0:
         c = r.find(b":", i)
-        n = int(r[i + 5:c])
-        resp += r[c + 1:c + 1 + n]
+        n = int(r[i + 5 : c])
+        resp += r[c + 1 : c + 1 + n]
         i = r.find(b"+IPD,", c + 1 + n)
     if not resp.startswith(b"HTTP/"):
         return 0, ""
     status = int(resp[9:12])
     b = resp.find(b"\r\n\r\n")
-    return status, resp[b + 4:b + 4 + limit].decode() if b >= 0 else ""
+    return status, resp[b + 4 : b + 4 + limit].decode() if b >= 0 else ""
 
 
 def get(url, timeout=10000):

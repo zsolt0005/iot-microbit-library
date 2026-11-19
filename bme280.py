@@ -1,4 +1,5 @@
 """BME280 temperature, pressure and humidity sensor (ELECFREAKS Smart Science IoT Kit)."""
+
 from microbit import i2c, sleep
 from ustruct import unpack_from
 
@@ -14,8 +15,20 @@ class BME280:
         if self._reg(0xD0, 1)[0] != 0x60:
             raise OSError("BME280 not found")
         c = self._reg(0x88, 26)
-        (self._t1, self._t2, self._t3, self._p1, self._p2, self._p3, self._p4, self._p5,
-         self._p6, self._p7, self._p8, self._p9) = unpack_from("<HhhHhhhhhhhh", c)
+        (
+            self._t1,
+            self._t2,
+            self._t3,
+            self._p1,
+            self._p2,
+            self._p3,
+            self._p4,
+            self._p5,
+            self._p6,
+            self._p7,
+            self._p8,
+            self._p9,
+        ) = unpack_from("<HhhHhhhhhhhh", c)
         self._h1 = c[25]
         c = self._reg(0xE1, 7)
         self._h2, self._h3 = unpack_from("<hB", c)
@@ -65,8 +78,14 @@ class BME280:
         p = p + ((v2 + (((p >> 2) * self._p8) >> 13) + self._p7) >> 4)
         v1 = t - 76800
         v2 = (((adc_h << 14) - (self._h4 << 20) - (self._h5 * v1)) + 16384) >> 15
-        v1 = v2 * (((((((v1 * self._h6) >> 10) * (((v1 * self._h3) >> 11) + 32768)) >> 10)
-                     + 2097152) * self._h2 + 8192) >> 14)
+        v1 = v2 * (
+            (
+                (((((v1 * self._h6) >> 10) * (((v1 * self._h3) >> 11) + 32768)) >> 10) + 2097152)
+                * self._h2
+                + 8192
+            )
+            >> 14
+        )
         v1 = v1 - (((((v1 >> 15) * (v1 >> 15)) >> 7) * self._h1) >> 4)
         v1 = 0 if v1 < 0 else 419430400 if v1 > 419430400 else v1
         return temp, p, (v1 >> 12) / 1024

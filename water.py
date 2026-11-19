@@ -2,6 +2,7 @@
 
 pin must be an analog pin: P0, P1, P2 (P3, P4, P10 only with display.off()).
 """
+
 from micropython import const
 
 _FULL = const(700)  # analog reading when the sensing area is fully submerged

@@ -1,4 +1,5 @@
 """Dust sensor (ELECFREAKS Smart Science IoT Kit), same conversion as MakeCode."""
+
 from utime import sleep_us
 
 

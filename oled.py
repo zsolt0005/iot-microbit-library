@@ -3,13 +3,16 @@
 Text uses the built-in micro:bit 5x5 font: 25 characters per line, 8 lines.
 No screen buffer is kept in RAM; text and clear write directly to the display.
 """
+
 from microbit import Image, i2c
 
 _ADDR = 0x3C
 # Control byte 0x00 (commands follow), then the init sequence of the original library
 # with two fixes: start line 0x40 (was 0x00) and page range 0-7 (was 0-63).
-_INIT = (b"\x00\xae\xa4\xd5\xf0\xa8\x3f\xd3\x00\x40\x8d\x14\x20\x00\x21\x00\x7f"
-         b"\x22\x00\x07\xa1\xc8\xda\x12\x81\xcf\xd9\xf1\xdb\x40\xa6\xd6\x00\xaf")
+_INIT = (
+    b"\x00\xae\xa4\xd5\xf0\xa8\x3f\xd3\x00\x40\x8d\x14\x20\x00\x21\x00\x7f"
+    b"\x22\x00\x07\xa1\xc8\xda\x12\x81\xcf\xd9\xf1\xdb\x40\xa6\xd6\x00\xaf"
+)
 _ZERO = b"\x40" + bytes(128)  # control byte 0x40 (data follows) + one empty page
 
 
@@ -34,7 +37,7 @@ def text(x, y, s):
 
     Characters that do not fit on the line are cut off.
     """
-    s = s[:25 - x]
+    s = s[: 25 - x]
     if not s:
         return
     buf = bytearray(1 + 5 * len(s))

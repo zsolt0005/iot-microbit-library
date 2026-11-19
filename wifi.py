@@ -3,6 +3,7 @@
 The micro:bit has one UART. After the first call it is connected to the Wi-Fi module
 (P8 TX, P12 RX), so print() over USB stops working until uart.init(115200) is called.
 """
+
 from microbit import pin8, pin12, sleep, uart
 from utime import ticks_diff, ticks_ms
 
@@ -55,7 +56,7 @@ def ip():
     """Return the IP address of the module as a string ("" if not connected)."""
     r = at("AT+CIFSR")
     i = r.find(b'STAIP,"')
-    return r[i + 7:r.find(b'"', i + 7)].decode() if i >= 0 else ""
+    return r[i + 7 : r.find(b'"', i + 7)].decode() if i >= 0 else ""
 
 
 def disconnect():

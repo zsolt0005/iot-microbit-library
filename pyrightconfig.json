@@ -5,5 +5,5 @@
   "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,
   "reportWildcardImportFromLibrary": false,
-  "exclude": [".venv", "typeshed", "dist", "tools"]
+  "exclude": [".venv", "typeshed", "dist", "tools", "tests", "bench.py"]
 }

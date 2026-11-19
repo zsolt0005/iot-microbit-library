@@ -2,9 +2,19 @@
 
 # Groups of 5: (upper amplitude, x0, x1, dB0, dB1); amplitude x0..x1 maps to dB0..dB1.
 # Copied from the MakeCode block, including its small gaps between segments.
-_SEGMENTS = (4, 0, 4, 30, 50, 8, 4, 8, 50, 55, 14, 9, 14, 55, 60,
-             32, 15, 32, 60, 70, 60, 33, 60, 70, 75, 100, 61, 100, 75, 80,
-             150, 101, 150, 80, 85, 231, 151, 231, 85, 90, 1023, 231, 1023, 90, 120)
+# fmt: off
+_SEGMENTS = (
+    4, 0, 4, 30, 50,
+    8, 4, 8, 50, 55,
+    14, 9, 14, 55, 60,
+    32, 15, 32, 60, 70,
+    60, 33, 60, 70, 75,
+    100, 61, 100, 75, 80,
+    150, 101, 150, 80, 85,
+    231, 151, 231, 85, 90,
+    1023, 231, 1023, 90, 120,
+)
+# fmt: on
 
 
 def db(pin, samples=250):
@@ -32,5 +42,7 @@ def db(pin, samples=250):
     s = _SEGMENTS
     for i in range(0, 45, 5):
         if amp <= s[i]:
-            return round((amp - s[i + 1]) * (s[i + 4] - s[i + 3]) / (s[i + 2] - s[i + 1]) + s[i + 3])
+            return round(
+                (amp - s[i + 1]) * (s[i + 4] - s[i + 3]) / (s[i + 2] - s[i + 1]) + s[i + 3]
+            )
     return 120

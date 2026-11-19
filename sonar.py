@@ -1,4 +1,5 @@
 """Sonar:bit ultrasonic distance sensor (ELECFREAKS Smart Science IoT Kit)."""
+
 from machine import time_pulse_us
 from utime import sleep_us
 

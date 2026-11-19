@@ -1,8 +1,10 @@
 """Základný popis
-    Senzor intenzity ultrafialového žiarenia
-    Args: RJ_pin (pin): Pripojovací port
-    Vráti: Hodnotu intenzity UV žiarenia v rozsahu 0-15
+Senzor intenzity ultrafialového žiarenia
+Args: RJ_pin (pin): Pripojovací port
+Vráti: Hodnotu intenzity UV žiarenia v rozsahu 0-15
 """
+
+
 class UV:
     def __init__(self, pin):
         self.__pin = pin

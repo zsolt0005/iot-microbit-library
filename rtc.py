@@ -3,6 +3,7 @@
 The clock keeps time on its CR1220 battery, but it runs only when the IoT:bit
 is powered or the battery is fitted, and it is stopped until the time is set.
 """
+
 from microbit import i2c
 
 _ADDR = 0x68
@@ -27,14 +28,33 @@ def now():
         h = _bcd(h & 0x1F) % 12 + (12 if h & 0x20 else 0)
     else:
         h = _bcd(h & 0x3F)
-    return (_bcd(r[6]) + 2000, _bcd(r[5] & 0x1F), _bcd(r[4] & 0x3F), h,
-            _bcd(r[1] & 0x7F), _bcd(r[0] & 0x7F))
+    return (
+        _bcd(r[6]) + 2000,
+        _bcd(r[5] & 0x1F),
+        _bcd(r[4] & 0x3F),
+        h,
+        _bcd(r[1] & 0x7F),
+        _bcd(r[0] & 0x7F),
+    )
 
 
 def set_time(year, month, day, hour, minute, second):
     """Set the time (24-hour mode) and start the clock."""
-    i2c.write(_ADDR, bytes((0, _to_bcd(second), _to_bcd(minute), _to_bcd(hour), 1,
-                            _to_bcd(day), _to_bcd(month), _to_bcd(year % 100))))
+    i2c.write(
+        _ADDR,
+        bytes(
+            (
+                0,
+                _to_bcd(second),
+                _to_bcd(minute),
+                _to_bcd(hour),
+                1,
+                _to_bcd(day),
+                _to_bcd(month),
+                _to_bcd(year % 100),
+            )
+        ),
+    )
 
 
 def clear():

@@ -10,6 +10,7 @@ Usage (from the microbit/ folder):
     uv run python tools/upload.py --size *.py                # only print sizes
     uv run python tools/upload.py bench.py:main.py           # upload under another name
 """
+
 import ast
 import glob
 import sys
@@ -24,8 +25,12 @@ def minify(source):
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef)):
             body = node.body
-            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
-                    and isinstance(body[0].value.value, str):
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
                 node.body = body[1:] or [ast.Pass()]
     lines = []
     for line in ast.unparse(tree).splitlines():
@@ -73,7 +78,7 @@ def upload(files, plain):
         data = (text if plain else minify(text)).encode()
         raw_exec(s, "f=open(%r,'wb')" % remote)
         for i in range(0, len(data), 128):
-            raw_exec(s, "f.write(%r)" % data[i:i + 128])
+            raw_exec(s, "f.write(%r)" % data[i : i + 128])
         raw_exec(s, "f.close()")
         size = int(raw_exec(s, "import os;print(os.size(%r))" % remote))
         if size != len(data):
