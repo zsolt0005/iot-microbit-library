@@ -1,3 +1,4 @@
+import config
 from oled import *
 from iotbit import *
 from rtc1307 import *
@@ -62,7 +63,7 @@ class Main:
 
 
 
-app = Main()
+app = Main(config.THINGSPEAK_API_KEY, config.WIFI_SSID, config.WIFI_PASSWORD)
 app.send_data()
 
 
