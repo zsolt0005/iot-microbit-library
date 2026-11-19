@@ -49,3 +49,19 @@ def value(index):
     """
     t = now()
     return t[index] if t and 0 <= index < 6 else None
+
+
+def unix():
+    """Return the time as Unix timestamp (seconds since 1970-01-01 UTC), or None if stopped.
+
+    The clock is expected to run in UTC.
+    """
+    t = now()
+    if t is None:
+        return None
+    y, m, d, hh, mm, ss = t
+    if m <= 2:  # count the year from March, so the leap day is at its end
+        y -= 1
+        m += 12
+    days = 365 * y + y // 4 - y // 100 + y // 400 + (153 * (m - 3) + 2) // 5 + d - 719469
+    return days * 86400 + hh * 3600 + mm * 60 + ss
