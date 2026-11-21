@@ -8,6 +8,7 @@ from conftest import FakePin
 import dust
 import noise
 import pir
+import servo
 import soil
 import sonar
 import water
@@ -52,6 +53,21 @@ def test_noise_quiet_and_loud():
     assert noise.db(FakePin(500)) == 30  # no amplitude
     pin = FakePin(itertools.cycle((0, 100)))  # amplitude 100 -> 80 dB in MakeCode
     assert noise.db(pin, samples=100) == 80
+
+
+def test_servo_pulse_width_and_clamp():
+    pin = FakePin()
+    for angle, duty in ((-5, 26), (0, 26), (45, 51), (90, 77), (135, 102), (180, 128), (200, 128)):
+        servo.write(pin, angle)
+        assert pin.period == 20
+        assert pin.duty == duty, angle
+
+
+def test_servo_home_moves_and_releases():
+    pin = FakePin()
+    servo.home(pin)
+    assert pin.duty == 77
+    assert pin.written == [0]
 
 
 def test_sonar():

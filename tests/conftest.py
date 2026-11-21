@@ -30,6 +30,12 @@ class FakePin:
     def write_digital(self, v):
         self.written.append(v)
 
+    def set_analog_period(self, ms):
+        self.period = ms
+
+    def write_analog(self, v):
+        self.duty = v
+
 
 class FakeI2C:
     def __init__(self):
