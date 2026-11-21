@@ -11,6 +11,7 @@ import pir
 import servo
 import soil
 import sonar
+import uv
 import water
 
 
@@ -68,6 +69,12 @@ def test_servo_home_moves_and_releases():
     servo.home(pin)
     assert pin.duty == 77
     assert pin.written == [0]
+
+
+def test_uv_matches_original_and_is_clamped():
+    for v in range(1024):
+        original = ((v - 0) * (15 - 0)) / (625 - 0) + 0
+        assert uv.intensity(FakePin(v)) == min(original, 15), v
 
 
 def test_sonar():
