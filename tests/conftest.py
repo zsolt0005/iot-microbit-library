@@ -67,7 +67,20 @@ class FakeUART:
         self.tx.append(data)
 
 
+class FakeDisplay:
+    def __init__(self):
+        self.on = True
+        self.shown = []
+
+    def is_on(self):
+        return self.on
+
+    def show(self, image):
+        self.shown.append(image)
+
+
 microbit = types.ModuleType("microbit")
+microbit.display = FakeDisplay()
 microbit.i2c = FakeI2C()
 microbit.uart = FakeUART()
 microbit.sleep = lambda ms: None
@@ -75,6 +88,23 @@ microbit.pin8 = FakePin()
 microbit.pin12 = FakePin()
 microbit.Image = None
 sys.modules["microbit"] = microbit
+
+log = types.ModuleType("log")  # built-in data log of micro:bit V2
+log.MILLISECONDS = 1
+log.entries = []
+log.full = False
+
+
+def _log_add(**row):
+    if log.full:
+        raise OSError(28)
+    log.entries.append(row)
+
+
+log.add = _log_add
+log.delete = lambda full=False: log.entries.clear()
+log.set_labels = lambda *labels, timestamp=None: None
+sys.modules["log"] = log
 
 micropython = types.ModuleType("micropython")
 micropython.const = lambda x: x

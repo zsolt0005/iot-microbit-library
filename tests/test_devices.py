@@ -2,9 +2,11 @@
 
 import calendar
 
-from microbit import i2c
+import log
+from microbit import display, i2c
 
 import bme280
+import debug
 import http
 import rtc
 import thingspeak
@@ -74,6 +76,34 @@ def test_bme280_wrong_chip():
     except OSError:
         return
     raise AssertionError("BME680 must not be accepted as BME280")
+
+
+def test_debug_message_and_clear():
+    debug.clear()
+    assert debug.message("x" * 50) is True
+    assert log.entries == [{"msg": "x" * 40}]
+    debug.clear()
+    assert log.entries == []
+
+
+def test_debug_error_respects_display():
+    debug.clear()
+    display.shown.clear()
+    display.on = False
+    assert debug.error("mqtt fail") is True
+    assert display.shown == []
+    display.on = True
+    debug.error("again")
+    assert display.shown == ["E"]
+    assert log.entries[0] == {"msg": "ERR mqtt fail"}
+
+
+def test_debug_full_log_does_not_raise():
+    log.full = True
+    try:
+        assert debug.message("x") is False
+    finally:
+        log.full = False
 
 
 def fake_module(monkeypatch, answer):
