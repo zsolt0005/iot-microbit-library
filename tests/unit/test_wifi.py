@@ -94,20 +94,59 @@ def mqtt_subscribed(sim):
     wifi.at('AT+MQTTSUB=0,"domov/kotol",1')
 
 
-def test_today_a_message_before_a_command_is_lost(sim):
+def test_message_before_a_command_is_kept(sim):
     mqtt_subscribed(sim)
     sim.deliver("domov/kotol", "ON")
     sim.sleep(100)  # the message is waiting in the UART
-    assert b"MQTTSUBRECV" not in wifi.at("AT+CIPSTATUS")  # at() dropped it
+    assert wifi.at("AT+CIPSTATUS").endswith(b"STATUS:2\r\n\r\nOK\r\n")
+    assert wifi.next_message() == ("domov/kotol", "ON")
+    assert wifi.next_message() is None
 
 
-@pytest.mark.xfail(strict=True, reason="step 1.3: keep messages from the broker")
-def test_message_from_broker_is_kept(sim):
+def test_message_inside_an_answer_is_kept(sim):
     mqtt_subscribed(sim)
     sim.inject('+MQTTSUBRECV:0,"domov/kotol",2,ON', during="AT+CIPSTATUS")
     r = wifi.at("AT+CIPSTATUS")
-    assert b"MQTTSUBRECV" not in r
-    assert wifi.next_message() == ("domov/kotol", "ON")  # type: ignore[attr-defined]
+    assert b"MQTTSUBRECV" not in r and r.endswith(b"OK\r\n")
+    assert wifi.next_message() == ("domov/kotol", "ON")
+
+
+def test_own_publish_comes_back_before_ok(sim):
+    mqtt_subscribed(sim)  # recorded: +MQTTSUBRECV arrives before OK of AT+MQTTPUB
+    assert wifi.at('AT+MQTTPUB=0,"domov/kotol","OFF",1,0') == b"\r\nOK\r\n"
+    assert wifi.next_message() == ("domov/kotol", "OFF")
+
+
+def test_message_split_into_single_bytes(sim):
+    mqtt_subscribed(sim)
+    sim.chunk = 1
+    sim.deliver("domov/kotol", '{"a":1,\r\n"b":"x,y"}')  # comma and CRLF inside data
+    assert wifi.at("AT").endswith(b"OK\r\n")
+    assert wifi.next_message() == ("domov/kotol", '{"a":1,\r\n"b":"x,y"}')
+
+
+def test_message_waits_for_its_rest():
+    assert wifi._take(b"\r\nOK\r\n+MQTTSUB") == b"\r\nOK\r\n"
+    assert wifi._take(b'RECV:0,"t",5,ab') == b""
+    assert wifi._take(b"cde\r\nSTATUS:2") == b"STATUS:2"
+    assert wifi._messages.pop() == ("t", "abcde")
+
+
+def test_broken_message_is_skipped():
+    assert wifi._take(b'+MQTTSUBRECV:0,"t",x,ab\r\nOK\r\n') == b'0,"t",x,ab\r\nOK\r\n'
+    assert wifi._messages == []
+    wifi._take(b'+MQTTSUBRECV:0,"t",900,' + b"a" * 600)  # length lost: never completes
+    assert wifi._partial == b"" and wifi._messages == []
+
+
+def test_full_queue_drops_oldest(sim):
+    mqtt_subscribed(sim)
+    for i in range(10):
+        sim.deliver("domov/kotol", str(i))
+    sim.sleep(500)
+    wifi.at("AT")
+    assert wifi.dropped == 2
+    assert [wifi.next_message()[1] for _ in range(8)] == [str(i) for i in range(2, 10)]
 
 
 @pytest.mark.xfail(strict=True, reason="step 4.5: echo is on again after deep sleep")

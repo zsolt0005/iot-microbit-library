@@ -138,5 +138,8 @@ def sim(monkeypatch):
     monkeypatch.setattr(wifi, "sleep", module.sleep)
     monkeypatch.setattr(wifi, "ticks_ms", module.ticks_ms)
     monkeypatch.setattr(wifi, "_ready", False)
+    monkeypatch.setattr(wifi, "_messages", [])
+    monkeypatch.setattr(wifi, "_partial", b"")
+    monkeypatch.setattr(wifi, "dropped", 0)
     monkeypatch.setattr(http, "uart", module)
     return module
