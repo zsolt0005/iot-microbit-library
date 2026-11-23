@@ -56,7 +56,8 @@ class EspAt:
         self._tail = 0  # time when the UART is free again
         self._buf = b""
         self._raw = 0  # bytes expected after AT+CIPSEND or AT+MQTTPUBRAW
-        self._raw_topic = None  # topic of AT+MQTTPUBRAW, None for AT+CIPSEND
+        self._raw_topic = None  # (topic, retain) of AT+MQTTPUBRAW, None for AT+CIPSEND
+        self.retained = {}  # topic -> data the broker keeps and sends to every new subscriber
         self._stale = False  # Wi-Fi lost, but the module still reports MQTT as connected
         self.hang_ms = 60000  # ASSUMED: the real module hung for at least 58 s
         self._busy = 0
@@ -235,16 +236,21 @@ class EspAt:
                 return [(5, ERROR)]
             m["state"] = 6
             self._subs.append(a[1])
-            return [(49, OK)]
+            events = [(49, OK)]  # ASSUMED: retained messages come after OK
+            for topic, data in self.retained.items():
+                if topic_matches(a[1], topic):
+                    line = '+MQTTSUBRECV:0,"%s",%d,%s\r\n' % (topic, len(data), data)
+                    events.append((90, line.encode()))
+            return events
         if name in ("AT+MQTTPUB", "AT+MQTTPUBRAW"):
             if down:
                 return [(204, ERROR)]
             if name == "AT+MQTTPUBRAW":
-                self._raw, self._raw_topic = int(a[2]), a[1]
+                self._raw, self._raw_topic = int(a[2]), (a[1], a[4] == "1")
                 return [(5, OK + b"\r\n>")]
             if self._stale:
                 return self._hang(start)
-            return self._published(a[1], a[2], (48, OK))
+            return self._published(a[1], a[2], (48, OK), a[4] == "1")
         if name == "AT+MQTTCLEAN":
             if m and m["reconnect"] and m["state"] == 3:
                 return self._reboot(start, 5000)  # seen: no answer, then a restart
@@ -299,8 +305,13 @@ class EspAt:
             self._mqtt["state"] = 3
         return []
 
-    def _published(self, topic, data, done):
+    def _published(self, topic, data, done, retain=False):
         self.published.append((topic, data))
+        if retain:  # an empty message removes the retained one
+            if data:
+                self.retained[topic] = data
+            else:
+                self.retained.pop(topic, None)
         events = []
         if any(topic_matches(s, topic) for s in self._subs):
             line = '+MQTTSUBRECV:0,"%s",%d,%s\r\n' % (topic, len(data), data)
@@ -309,11 +320,12 @@ class EspAt:
 
     def _mqtt_payload(self, payload):
         start = max(self.now, self._busy)
-        topic, self._raw_topic = self._raw_topic, None
+        (topic, retain), self._raw_topic = self._raw_topic, None
         if self._stale:
             self._schedule(start, self._hang(start))
             return
-        self._schedule(start, self._published(topic, payload.decode(), (48, b"+MQTTPUB:OK\r\n")))
+        done = (48, b"+MQTTPUB:OK\r\n")
+        self._schedule(start, self._published(topic, payload.decode(), done, retain))
 
     def _payload(self, payload):
         start = max(self.now, self._busy)

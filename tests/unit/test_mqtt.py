@@ -140,6 +140,22 @@ def test_check_restarts_a_silent_module(sim):
     assert b"heslo" not in sim.answered  # echo was turned off again after the restart
 
 
+def test_retained_command_reaches_node_after_outage(sim):
+    """Notes 7g: the module cannot keep a persistent session, retained messages replace it."""
+    online(sim, "domov/kotol/prikaz")
+    wifi.disconnect()
+    sim.retained["domov/kotol/prikaz"] = "ON"  # Home Assistant sent it while the node was offline
+    assert mqtt.check("Domov", "heslo") is True
+    sim.sleep(500)
+    assert mqtt.message() == ("domov/kotol/prikaz", "ON")
+
+
+def test_publish_retained(sim):
+    online(sim)
+    assert mqtt.publish("domov/kotol/rele", "ON", retain=True)
+    assert sim.retained["domov/kotol/rele"] == "ON"
+
+
 def test_disconnect_forgets_topics(sim):
     online(sim)
     mqtt.disconnect()
