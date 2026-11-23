@@ -132,6 +132,7 @@ def sim(monkeypatch):
 
     import http
     import mqtt
+    import sntp
     import wifi
 
     module = EspAt(networks={"Domov": "heslo"})
@@ -143,6 +144,8 @@ def sim(monkeypatch):
     monkeypatch.setattr(http, "uart", module)
     monkeypatch.setattr(mqtt, "uart", module)
     monkeypatch.setattr(mqtt, "sleep", module.sleep)
+    monkeypatch.setattr(sntp, "sleep", module.sleep)
+    monkeypatch.setattr(sntp, "ticks_ms", module.ticks_ms)
     for name, value in (("_messages", []), ("_partial", b""), ("_server", None),
                         ("_topics", []), ("dropped", 0)):  # fmt: skip
         monkeypatch.setattr(mqtt, name, value)

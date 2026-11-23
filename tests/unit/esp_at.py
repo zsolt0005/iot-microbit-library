@@ -6,6 +6,7 @@ Answers marked ASSUMED were not seen on the real module.
 """
 
 import re
+import time
 
 OK = b"\r\nOK\r\n"
 ERROR = b"\r\nERROR\r\n"
@@ -58,6 +59,8 @@ class EspAt:
         self._raw = 0  # bytes expected after AT+CIPSEND or AT+MQTTPUBRAW
         self._raw_topic = None  # (topic, retain) of AT+MQTTPUBRAW, None for AT+CIPSEND
         self.retained = {}  # topic -> data the broker keeps and sends to every new subscriber
+        self.utc = 1795461709  # internet time (UTC) at sim.now == 0, from the SNTP recording
+        self._sntp = None  # time when SNTP got the time; None while SNTP is off
         self._stale = False  # Wi-Fi lost, but the module still reports MQTT as connected
         self.hang_ms = 60000  # ASSUMED: the real module hung for at least 58 s
         self._busy = 0
@@ -257,6 +260,22 @@ class EspAt:
             self._mqtt = None
             self._subs = []
             return [(32, (b"" if down else b"+MQTTDISCONNECTED:0\r\n") + OK)]
+        if name == "AT+CIPSNTPCFG?":
+            if self._sntp is None:
+                return [(10, b"+CIPSNTPCFG:0\r\nOK\r\n")]
+            return [(13, b'+CIPSNTPCFG:1,0,"pool.ntp.org","time.google.com"\r\n' + OK)]
+        if name == "AT+CIPSNTPCFG":
+            self._sntp = start + 500 if a[0] == "1" and online else None  # seen: time after 0.5 s
+            return [(14, OK)]
+        if name == "AT+CIPSNTPTIME?":
+            synced = self._sntp is not None and start >= self._sntp
+            t = time.gmtime(self.utc + start // 1000 if synced else 0)
+            day = "%s %d %s %d" % (time.strftime("%a %b", t), t.tm_mday,
+                                   time.strftime("%H:%M:%S", t), t.tm_year)  # fmt: skip
+            text = "+CIPSNTPTIME:%s\r\nOK\r\n" % day
+            return [(11, text.encode())]
+        if name == "AT+CIPSNTPINTV?":
+            return [(10, b"+CIPSNTPTIME:3600\r\n" + OK)]  # sic: the firmware names it CIPSNTPTIME
         if name == "AT+GSLP":
             return self._deep_sleep(int(a[0]), start)
         return [(6, b"ERROR\r\n")]
@@ -276,6 +295,7 @@ class EspAt:
 
     def _deep_sleep(self, ms, start):
         wake = 7 + ms
+        self._sntp = None
         self._awake = start + wake
         self.echo = True
         self._wifi = self._mqtt = self._tcp = None
@@ -288,6 +308,7 @@ class EspAt:
 
     def _reboot(self, start, delay):
         self._awake = start + delay
+        self._sntp = None
         self.echo = True
         self._wifi = self._mqtt = self._tcp = None
         self._subs = []
