@@ -7,6 +7,7 @@ dependencies = []
 [dependency-groups]
 dev = [
     "microfs>=1.4.5",
+    "paho-mqtt>=2.1.0",
     "pyright>=1.1.414",
     "pyserial>=3.5",
     "pytest>=9.2.0",
@@ -22,7 +23,7 @@ select = ["E", "W", "F", "I", "B", "UP"]
 ignore = ["UP"]  # MicroPython does not support all modern syntax
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit"]  # integration tests need Docker: pytest tests/integration
 
 [tool.ruff.lint.isort]
 # our http.py shadows the CPython package of the same name; it does not exist on the micro:bit

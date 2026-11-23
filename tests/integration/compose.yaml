@@ -1,0 +1,35 @@
+# Test copy of docker/compose.yaml (the public repository has no docker/ folder).
+# Keep image versions and settings the same as in docker/compose.yaml by hand.
+name: iot-test
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.1.4-alpine@sha256:fa12172a051310efe5bcb7a6a11b77bd5faacb82cbacd7742aa758bf024fd8e4
+    restart: unless-stopped
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    environment:
+      MQTT_USER: ${MQTT_USER:?set in the CI workflow}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:?set in the CI workflow}
+    command:
+      - sh
+      - -c
+      - |
+        mosquitto_passwd -c -b /mosquitto/data/passwd "$$MQTT_USER" "$$MQTT_PASSWORD"
+        chown mosquitto:mosquitto /mosquitto/data/passwd
+        chmod 0700 /mosquitto/data/passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mosquitto_sub -h 127.0.0.1 -u "$$MQTT_USER" -P "$$MQTT_PASSWORD" -t '$$SYS/broker/version' -C 1 -W 3
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 3s
+
+volumes:
+  mosquitto-data:

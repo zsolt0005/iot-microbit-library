@@ -10,7 +10,7 @@ import sys
 import time
 import types
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.modules.pop("http", None)  # our http.py, not the CPython standard library package
 

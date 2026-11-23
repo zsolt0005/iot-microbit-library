@@ -1,0 +1,51 @@
+# Runs in the public repository iot-microbit-library, where this folder is the root.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.13.5"
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --locked
+      - run: cp config.example.py config.py
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pyright
+      - run: uv run pytest
+
+  integration:
+    runs-on: ubuntu-24.04
+    env:
+      MQTT_USER: ci
+      MQTT_PASSWORD: ci-test-only
+      MQTT_PORT: "1883"
+      COMPOSE_FILE: tests/integration/compose.yaml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: docker compose up -d --wait
+      - run: uv sync --locked
+      - run: uv run pytest tests/integration
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v
