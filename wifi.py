@@ -5,72 +5,23 @@ The micro:bit has one UART. After the first call it is connected to the Wi-Fi mo
 """
 
 from microbit import pin8, pin12, sleep, uart
-from micropython import const
 from utime import ticks_diff, ticks_ms
 
 _OK = (b"OK\r\n", b"ERROR", b"FAIL")
-_MSG = b"+MQTTSUBRECV:"
-_MAX_MESSAGES = const(8)
-_MAX_PARTIAL = const(512)  # longer unfinished message is treated as broken
 _ready = False
-_messages = []  # (topic, data) received from the MQTT broker, oldest first
-_partial = b""  # start of a message whose rest has not arrived yet
-dropped = 0  # messages thrown away because the queue was full
 
 
-def _take(buf):
-    """Move complete broker messages from buf to the queue; return the rest of buf.
+def _keep_all(d):
+    return d
 
-    A message is +MQTTSUBRECV:<id>,"<topic>",<len>,<data>; data has exactly len bytes.
-    """
-    global _partial, dropped
-    buf = _partial + buf
-    _partial = b""
-    if b"+" not in buf:
-        return buf  # most answers: nothing to look for
-    out = b""
-    while True:
-        i = buf.find(_MSG)
-        if i < 0:
-            j = len(buf) - len(_MSG)
-            j = buf.rfind(b"+", j if j > 0 else 0)  # only the end can hold a cut marker
-            if j >= 0 and _MSG.startswith(buf[j:]):  # the marker itself may be cut
-                _partial = buf[j:]
-                return out + buf[:j]
-            return out + buf
-        out += buf[:i]
-        q = buf.find(b'"', i)
-        q2 = buf.find(b'"', q + 1) if q >= 0 else -1
-        c = buf.find(b",", q2 + 2) if q2 >= 0 else -1
-        try:
-            end = c + 1 + int(buf[q2 + 2 : c]) if c >= 0 else -1
-        except ValueError:
-            end = 0  # bytes were lost in the UART
-        if end < 0 or len(buf) < end:
-            if len(buf) - i <= _MAX_PARTIAL:
-                _partial = buf[i:]  # wait for the rest
-                return out
-            end = 0
-        if end == 0:
-            buf = buf[i + len(_MSG) :]  # broken message: skip its marker
-            continue
-        if len(_messages) >= _MAX_MESSAGES:
-            _messages.pop(0)
-            dropped += 1
-        _messages.append((buf[q + 1 : q2].decode(), buf[c + 1 : end].decode()))
-        buf = buf[end + 2 :] if buf[end : end + 2] == b"\r\n" else buf[end:]
+
+on_data = _keep_all  # mqtt.py replaces it to take its messages out of the answers
 
 
 def _read():
-    """Read the UART, keep broker messages, return the other bytes."""
+    """Read the UART; return the bytes that are not taken by on_data."""
     d = uart.read()
-    return _take(d) if d else b""
-
-
-def next_message():
-    """Return the oldest message from the broker as (topic, data), or None."""
-    _read()
-    return _messages.pop(0) if _messages else None
+    return on_data(d) if d else b""
 
 
 def wait(ends, timeout):
@@ -98,7 +49,7 @@ def at(cmd, timeout=2000, ends=_OK):
         sleep(100)
         uart.read()
         at("ATE0")  # no echo, so the Wi-Fi password is never sent back
-    _read()  # drop old answers, keep broker messages
+    _read()  # drop old answers (on_data still sees them)
     uart.write(cmd + "\r\n")
     return wait(ends, timeout)
 
@@ -112,6 +63,24 @@ def connect(ssid, password, timeout=20000):
 def is_connected():
     """Return True if the module is connected to a Wi-Fi network."""
     return b"+CWJAP:" in at("AT+CWJAP?")
+
+
+def has_ip():
+    """Return True if the module has an IP address (AT+CIPSTATUS 2, 3 or 4)."""
+    r = at("AT+CIPSTATUS")
+    return b"STATUS:2" in r or b"STATUS:3" in r or b"STATUS:4" in r
+
+
+def reset(timeout=8000):
+    """Restart the module (AT+RST) and turn echo off again. Returns True when it is ready.
+
+    After the restart the module joins its last Wi-Fi network by itself.
+    """
+    at("AT", 200)  # make sure the UART is set up
+    uart.write("AT+RST\r\n")
+    ok = b"ready" in wait((b"ready\r\n",), timeout)
+    at("ATE0")
+    return ok
 
 
 def ip():

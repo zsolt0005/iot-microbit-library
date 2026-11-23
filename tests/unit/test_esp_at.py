@@ -75,4 +75,4 @@ def test_unsolicited_line_inside_an_answer():
     sim.inject('+MQTTSUBRECV:0,"t",2,ON', during="AT+CIPSTATUS")
     sim.write("AT+CIPSTATUS\r\n")
     sim.now = 100
-    assert sim.read() == b'AT+CIPSTATUS\r\n+MQTTSUBRECV:0,"t",2,ON\r\nSTATUS:5\r\n\r\nOK\r\n'
+    assert sim.read() == b'AT+CIPSTATUS\r\n+MQTTSUBRECV:0,"t",2,ON\r\nSTATUS:1\r\n\r\nOK\r\n'

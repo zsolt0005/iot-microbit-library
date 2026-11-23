@@ -55,7 +55,10 @@ class EspAt:
         self._out = []  # (time, bytes) waiting in the UART
         self._tail = 0  # time when the UART is free again
         self._buf = b""
-        self._raw = 0  # bytes expected after AT+CIPSEND
+        self._raw = 0  # bytes expected after AT+CIPSEND or AT+MQTTPUBRAW
+        self._raw_topic = None  # topic of AT+MQTTPUBRAW, None for AT+CIPSEND
+        self._stale = False  # Wi-Fi lost, but the module still reports MQTT as connected
+        self.hang_ms = 60000  # ASSUMED: the real module hung for at least 58 s
         self._busy = 0
         self._awake = 0
         self._mute = []
@@ -84,7 +87,10 @@ class EspAt:
                     return
                 payload, self._buf = self._buf[: self._raw], self._buf[self._raw :]
                 self._raw = 0
-                self._payload(payload)
+                if self._raw_topic is None:
+                    self._payload(payload)
+                else:
+                    self._mqtt_payload(payload)
                 continue
             i = self._buf.find(b"\r\n")
             if i < 0:
@@ -101,7 +107,7 @@ class EspAt:
     # test side: faults and events
 
     def mute(self, prefix):
-        """Commands starting with prefix get no answer (module hangs)."""
+        """Commands starting with prefix get no answer; "AT$" mutes only the exact command AT."""
         self._mute.append(prefix)
 
     def inject(self, line, during):
@@ -116,6 +122,11 @@ class EspAt:
         """A message from the broker arrives on a subscribed topic."""
         if any(topic_matches(s, topic) for s in self._subs):
             self.push('+MQTTSUBRECV:0,"%s",%d,%s' % (topic, len(data), data))
+
+    def lose_wifi_silently(self):
+        """Wi-Fi is gone, but the module keeps reporting the MQTT connection (seen once)."""
+        self._wifi = self._tcp = None
+        self._stale = True
 
     @property
     def connected(self):
@@ -138,7 +149,7 @@ class EspAt:
         cmd = line.decode()
         self.received.append(cmd)
         events = [(0, line + b"\r\n")] if self.echo else []
-        if not any(cmd.startswith(p) for p in self._mute):
+        if not any(cmd == p[:-1] if p.endswith("$") else cmd.startswith(p) for p in self._mute):
             answer = self._answer(cmd, start)
             for during, extra in list(self._inject):
                 if cmd.startswith(during) and answer:
@@ -168,14 +179,20 @@ class EspAt:
         if name == "AT+CWJAP":
             return self._join(a[0], a[1], start, online)
         if name == "AT+CWQAP":
-            self._wifi = self._mqtt = self._tcp = None
-            return [(1014, b"WIFI DISCONNECT\r\n"), (1108, OK)] if online else [(6, OK)]
+            self._wifi = self._tcp = None
+            events = [(1014, b"WIFI DISCONNECT\r\n")] if online else []
+            if self._mqtt and self._mqtt["state"] != 3:
+                self._mqtt["state"] = 3
+                events.append((1100, b"+MQTTDISCONNECTED:0\r\n"))
+            return events + [(1108 if online else 6, OK)]
+        if name == "AT+RST":
+            return [(5, OK)] + self._reboot(start, 1400)  # OK: ASSUMED; ready seen after 1.5 s
         if name == "AT+CIFSR":
             ip = self.ip if online else "0.0.0.0"
             text = '+CIFSR:STAIP,"%s"\r\n+CIFSR:STAMAC,"%s"\r\n' % (ip, MAC)
             return [(11, text.encode() + OK)]
         if name == "AT+CIPSTATUS":
-            return [(7, b"STATUS:%d\r\n" % (2 if online else 5) + OK)]  # 5: ASSUMED
+            return [(7, b"STATUS:%d\r\n" % (2 if online else 1) + OK)]
         if name == "AT+CIPSTART":
             if not online or a[1] not in self.servers:
                 return [(16, ERROR)]  # ASSUMED for no Wi-Fi
@@ -193,40 +210,57 @@ class EspAt:
             return [(5, b"CLOSED\r\n" + OK)]  # ASSUMED
         if name == "AT+MQTTUSERCFG":
             return [(6, OK)]
+        m = self._mqtt
+        down = m is None or m["state"] == 3
         if name == "AT+MQTTCONN?":
-            if self._mqtt is None:
+            if m is None:
                 return [(8, b'+MQTTCONN:0,0,0,"","","",0\r\n' + OK)]  # ASSUMED
-            return [(11, b'+MQTTCONN:0,4,1,"%s","%s","",1\r\n' % self._mqtt + OK)]
+            line = b'+MQTTCONN:0,%d,1,"%s","%s","",%d\r\n' % (
+                m["state"], m["host"], m["port"], m["reconnect"])  # fmt: skip
+            return [(11, line + OK)]
         if name == "AT+MQTTCONN":
             if not online or a[1] not in self.brokers:
-                return [(5000, ERROR)]  # ASSUMED
-            self._mqtt = (a[1].encode(), a[2].encode())
-            return [(307, b'+MQTTCONNECTED:0,1,"%s","%s","",1\r\n' % self._mqtt), (366, OK)]
+                return [(10200, b"+MQTTDISCONNECTED:0\r\n" * 2 + ERROR)]
+            m = self._mqtt = {"host": a[1].encode(), "port": a[2].encode(),
+                              "reconnect": int(a[3]), "state": 4}  # fmt: skip
+            self._subs = []
+            line = b'+MQTTCONNECTED:0,1,"%s","%s","",%d\r\n' % (
+                m["host"],
+                m["port"],
+                m["reconnect"],
+            )
+            return [(307, line), (366, OK)]
         if name == "AT+MQTTSUB":
-            if self._mqtt is None:
-                return [(5, ERROR)]  # ASSUMED
+            if down:
+                return [(5, ERROR)]
+            m["state"] = 6
             self._subs.append(a[1])
             return [(49, OK)]
-        if name == "AT+MQTTPUB":
-            if self._mqtt is None:
-                return [(5, ERROR)]  # ASSUMED
-            topic, data = a[1], a[2]
-            self.published.append((topic, data))
-            if any(topic_matches(s, topic) for s in self._subs):
-                line = '+MQTTSUBRECV:0,"%s",%d,%s\r\n' % (topic, len(data), data)
-                return [(41, line.encode()), (48, OK)]
-            return [(41, OK)]
+        if name in ("AT+MQTTPUB", "AT+MQTTPUBRAW"):
+            if down:
+                return [(204, ERROR)]
+            if name == "AT+MQTTPUBRAW":
+                self._raw, self._raw_topic = int(a[2]), a[1]
+                return [(5, OK + b"\r\n>")]
+            if self._stale:
+                return self._hang(start)
+            return self._published(a[1], a[2], (48, OK))
         if name == "AT+MQTTCLEAN":
+            if m and m["reconnect"] and m["state"] == 3:
+                return self._reboot(start, 5000)  # seen: no answer, then a restart
             self._mqtt = None
             self._subs = []
-            return [(32, b"+MQTTDISCONNECTED:0\r\n" + OK)]
+            return [(32, (b"" if down else b"+MQTTDISCONNECTED:0\r\n") + OK)]
         if name == "AT+GSLP":
             return self._deep_sleep(int(a[0]), start)
         return [(6, b"ERROR\r\n")]
 
     def _join(self, ssid, password, start, online):
         events = [(1015, b"WIFI DISCONNECT\r\n")] if online else []
-        self._wifi = self._mqtt = self._tcp = None
+        self._wifi = self._tcp = None
+        m = self._mqtt
+        if m and m["reconnect"] and m["state"] == 3 and self.networks.get(ssid) == password:
+            return events + [(1881, b"WIFI CONNECTED\r\n")]  # seen: no IP, no OK
         if self.networks.get(ssid) != password:
             code = 2 if ssid in self.networks else 3  # 3: ASSUMED (network not found)
             return events + [(7199, b"+CWJAP:%d\r\n" % code + ERROR)]
@@ -245,6 +279,41 @@ class EspAt:
             self._wifi = (self.saved, start + wake + 4720)
             events += [(wake + 2210, b"\r\nWI"), (wake + 4720, b"FI CONNECTED\r\nWIFI GOT IP\r\n")]
         return events
+
+    def _reboot(self, start, delay):
+        self._awake = start + delay
+        self.echo = True
+        self._wifi = self._mqtt = self._tcp = None
+        self._subs = []
+        self._stale = False
+        events = [(delay, _BOOT)]
+        if self.saved:  # seen after AT+RST: IP about 1.5 s after ready
+            self._wifi = (self.saved, start + delay + 1550)
+            events += [(delay + 600, b"WIFI CONNECTED\r\n"), (delay + 1550, b"WIFI GOT IP\r\n")]
+        return events
+
+    def _hang(self, start):
+        self._awake = start + self.hang_ms
+        self._stale = False
+        if self._mqtt:
+            self._mqtt["state"] = 3
+        return []
+
+    def _published(self, topic, data, done):
+        self.published.append((topic, data))
+        events = []
+        if any(topic_matches(s, topic) for s in self._subs):
+            line = '+MQTTSUBRECV:0,"%s",%d,%s\r\n' % (topic, len(data), data)
+            events.append((41, line.encode()))
+        return events + [done]
+
+    def _mqtt_payload(self, payload):
+        start = max(self.now, self._busy)
+        topic, self._raw_topic = self._raw_topic, None
+        if self._stale:
+            self._schedule(start, self._hang(start))
+            return
+        self._schedule(start, self._published(topic, payload.decode(), (48, b"+MQTTPUB:OK\r\n")))
 
     def _payload(self, payload):
         start = max(self.now, self._busy)
