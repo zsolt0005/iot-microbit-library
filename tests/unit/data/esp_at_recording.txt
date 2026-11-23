@@ -1,0 +1,165 @@
+# Raw answers of the IoT:bit Wi-Fi module (AT 1.4.1, bl_iot_sdk 1.6.36), recorded 23 Nov 2026.
+# '>> command', then each UART chunk: ms after sending, bytes. 'end ms total_bytes'.
+# SSID, password, IP and MAC addresses are replaced; byte totals are of the original answers.
+>> AT
+  4 b'AT\r\n\r\nOK\r'
+  6 b'\n'
+  end 307 10
+>> ATE0
+  4 b'ATE0\r\n'
+  6 b'\r\nOK\r\n'
+  end 307 12
+>> AT
+  5 b'\r\nOK\r\n'
+  end 306 6
+>> AT+FOO
+  6 b'ERROR\r'
+  8 b'\n'
+  end 309 7
+>> AT+GMR
+  4 b'AT versi'
+  6 b'on:1.4.1\r\nSDK version:r'
+  10 b'elease_bl_iot_sdk_1.6.36\r\ncompile_time'
+  501 b':Nov  1 2022 17:43:20\r\nBin'
+  505 b' version:V4.18_P1.5.1-ca22907\r\n\r\nOK\r\n'
+  643 b'WIFI CONNECTED\r'
+  645 b'\n'
+  end 808 148
+>> AT+CWMODE=1
+  13 b'\r\nOK\r\n'
+  end 314 6
+>> AT+CWJAP?
+  6 b'\r\nOK\r\n'
+  end 308 6
+>> AT+CWJAP="<ssid>","<wrong>"
+  1015 b'WIFI DI'
+  1017 b'SCONNECT\r\n'
+  7199 b'+CWJAP:2\r\n\r\nERR'
+  7201 b'OR\r\n'
+  end 7502 36
+>> AT+CWJAP="<ssid>","<password>"
+  1881 b'WIFI CONNECTED'
+  1883 b'\r\n'
+  2766 b'WIFI GOT IP\r\n\r'
+  2768 b'\nOK\r\n'
+  end 3069 35
+>> AT+CWJAP?
+  6 b'+CWJAP:"'
+  8 b'<ssid>","aa:bb:cc:dd:ee:'
+  11 b'ff",1,-64,0,65535,0,0,0\r\n\r\nOK\r\n'
+  end 313 62
+>> AT+CIFSR
+  3 b'+CIF'
+  5 b'SR:STAIP,"192.168.1.50"'
+  9 b'\r\n+CIFSR:STAMAC,"aa:bb:cc:dd:ee:ff"\r\n\r\nOK\r\n'
+  end 311 70
+>> AT+CIPSTATUS
+  7 b'STATUS:2\r'
+  9 b'\n\r\nOK\r\n'
+  end 311 16
+>> AT+CIPSTART="TCP","no-such-host.invalid",80
+  16 b'\r\nERROR\r\n'
+  end 317 9
+>> AT+CIPSTART="TCP","api.thingspeak.com",80
+  139 b'CONNECT\r\n\r\nOK\r\n'
+  end 440 15
+>> AT+CIPSEND=94
+  5 b'\r\nOK\r\n\r\n>'
+  end 306 9
+>> <request 94 B>
+  5 b'\r\nRecv 94 bytes\r\n\r\n'
+  8 b'SEND OK\r\n'
+  139 b'\r\n+IPD,'
+  141 b'1250:HTTP/1.1 200 OK\r\nD'
+  144 b'ate: Mon, 23 Nov 2026 11:17:43 GMT\r'
+  147 b'\nContent-Type: application/json; c'
+  152 b'harset=utf-8\r\nTransfer-Encoding: chunked\r\nConnection: clos'
+  156 b'e\r\nStatus: 200 OK\r\ncache-control: max-age=7, p'
+  160 b'rivate\r\naccess-control-allow-origin: *\r\naccess'
+  165 b'-control-max-age: 1800\r\nx-request-id: 44cfc5ea-f6d0-4c6f-8'
+  170 b'e7d-3e7363bfd0de\r\ncontent-security-policy-report-only: def'
+  175 b"ault-src 'self' https:; font-src 'self' https: data:; img"
+  180 b"-src 'self' https: data:; object-src 'self'; script-src 's"
+  184 b"elf' https: 'unsafe-inline' 'unsafe-eval'; sty"
+  189 b"le-src 'self' https: 'unsafe-inline'; connect-src 'self' h"
+  193 b'ttps: https://*.mathworks.com https://*.things'
+  197 b'peak.com https://*.omtrdc.net https://*.demdex'
+  204 b".net; frame-src 'self' https: https://*.mathworks.com\r\naccess-control-allow-heade"
+  209 b'rs: origin, content-type, X-Requested-With\r\naccess-control'
+  213 b'-allow-methods: GET, POST, PUT, OPTIONS, DELET'
+  217 b'E, PATCH\r\netag: W/"28631ca803ce5116fce71088caa'
+  221 b'8e318"\r\nx-frame-options: SAMEORIGIN\r\n\r\n130\r\n{"'
+  228 b'channel":{"id":9,"name":"my_house","description":"Netduino Plus connected to sens'
+  233 b'ors around the house","latitude":"40.44","longitude":"-79.'
+  237 b'9965","field1":"Light","field2":"Outside Tempe'
+  241 b'rature","created_at":"2010-12-14T01:20:06Z","u'
+  245 b'pdated_at":"2018-07-22T04:59:08Z","last_entry_'
+  249 b'id":16808012},"feeds":[]}\r\n0\r\n\r\n\r\n'
+  259 b'CLOSED\r\n'
+  end 761 1300
+>> AT+CIPCLOSE
+  4 b'\r\nERROR\r\n'
+  end 306 9
+>> AT+MQTTUSERCFG=0,1,"dpmb21126","","",0,0,""
+  6 b'\r\nOK\r\n'
+  end 307 6
+>> AT+MQTTCONN=0,"test.mosquitto.org",1883,1
+  307 b'+MQTTCONNECT'
+  309 b'ED:0,1,"test.mosquitto.'
+  311 b'org","1883","",1\r\n'
+  366 b'\r\nOK\r\n'
+  end 667 59
+>> AT+MQTTCONN?
+  8 b'+MQTTCONN:0,4,1,"test.'
+  11 b'mosquitto.org","1883","",1\r\n\r\nOK\r\n'
+  end 312 56
+>> AT+MQTTSUB=0,"<topic>",1
+  49 b'\r\nOK\r\n'
+  end 350 6
+>> AT+MQTTPUB=0,"<topic>","hello",1,0
+  41 b'+MQTTSUBRE'
+  44 b'CV:0,"dpmb/21126",5,hello\r\n'
+  48 b'\r\nOK\r\n'
+  end 1551 43
+>> AT+MQTTPUB then AT+CIPSTATUS at once
+  40 b'+MQTTSUBRECV:'
+  43 b'0,"dpmb/21126",6,second\r\n'
+  47 b'\r\nOK'
+  49 b'\r\nSTATUS:2\r\n\r\nOK\r\n'
+  end 4001 60
+>> idle 3 s
+  end 3000 0
+>> AT+MQTTCLEAN=0
+  32 b'+MQTTD'
+  34 b'ISCONNECTED:0\r\n\r\nOK\r\n'
+  end 335 27
+>> AT+CWQAP
+  1014 b'WIFI DISCONNECT\r'
+  1016 b'\n'
+  1108 b'\r\nOK\r\n'
+  end 1409 23
+>> AT+CWJAP?
+  7 b'\r\nOK\r\n'
+  end 308 6
+>> AT+CIFSR
+  7 b'+CIFSR:STAIP,"0.'
+  11 b'0.0.0"\r\n+CIFSR:STAMAC,"aa:bb:cc:dd:ee:ff"\r\n\r\nO'
+  14 b'K\r\n'
+  end 315 65
+>> AT+GSLP=2000
+  7 b'\r\nOK\r\n'
+  end 309 6
+>> wake-up output 8 s
+  2705 b'###'
+  2707 b'#######################'
+  2709 b'######################\r'
+  2711 b'\nAT version:1.4.1\r\nSDK '
+  2715 b'version:release_bl_iot_sdk_1.6.36\r\ncompile_tim'
+  2718 b'e:Nov  1 2022 17:43:23\r\nBin version'
+  3915 b':V4.18_P1.5.1-ca22907\r\n################\r\n\r\nready\r\n\r\nWI'
+  6423 b'FI CONNECTED\r\nWIFI GOT IP\r'
+  6426 b'\n'
+  end 8001 234
+>> AT
+  5 b'AT\r\n\r\nOK\r\n'
+  end 306 10

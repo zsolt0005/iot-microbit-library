@@ -10,6 +10,8 @@ import sys
 import time
 import types
 
+import pytest
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.modules.pop("http", None)  # our http.py, not the CPython standard library package
@@ -121,3 +123,20 @@ machine.time_pulse_us = lambda pin, level, timeout: pin.pulse
 sys.modules["machine"] = machine
 
 sys.modules["ustruct"] = struct
+
+
+@pytest.fixture
+def sim(monkeypatch):
+    """The ESP-AT simulator in place of the UART and clock used by wifi.py and http.py."""
+    from esp_at import EspAt
+
+    import http
+    import wifi
+
+    module = EspAt(networks={"Domov": "heslo"})
+    monkeypatch.setattr(wifi, "uart", module)
+    monkeypatch.setattr(wifi, "sleep", module.sleep)
+    monkeypatch.setattr(wifi, "ticks_ms", module.ticks_ms)
+    monkeypatch.setattr(wifi, "_ready", False)
+    monkeypatch.setattr(http, "uart", module)
+    return module
