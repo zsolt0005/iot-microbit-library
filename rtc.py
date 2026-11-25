@@ -2,6 +2,7 @@
 
 The clock keeps time on its CR1220 battery, but it runs only when the IoT:bit
 is powered or the battery is fitted, and it is stopped until the time is set.
+Without IoT:bit power the clock is not on I2C at all: reads raise OSError(19).
 """
 
 from microbit import i2c

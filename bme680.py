@@ -45,15 +45,20 @@ class BME680:
         self._range = (self._reg(0x02, 1)[0] & 0x30) >> 4
         self._heat_val = unpack_from("b", self._reg(0x00, 1))[0]
         self._sw_err = (self._reg(0x04, 1)[0] & 0xF0) >> 4
-        self._gas_on = gas
         self._wait = heater_ms + 50 if gas else 45  # ms; T, P and H alone take ~42 ms
         self._t_fine = 0
+        self._heat = (
+            (self._heater_res(heater_temp, 25), self._heater_wait(heater_ms)) if gas else None
+        )
+        self._setup()
+
+    def _setup(self):
         self._write(0x72, 0x01)  # humidity x1
         self._write(0x75, 0x00)  # no IIR filter
-        if gas:
-            self._write(0x5A, self._heater_res(heater_temp, 25))
-            self._write(0x64, self._heater_wait(heater_ms))
-        self._write(0x71, (0x20 if self._high else 0x10) if gas else 0)  # run gas, heater profile 0
+        if self._heat:
+            self._write(0x5A, self._heat[0])
+            self._write(0x64, self._heat[1])
+        self._write(0x71, (0x20 if self._high else 0x10) if self._heat else 0)  # run gas, profile 0
 
     def _reg(self, reg, n):
         i2c.write(self._addr, bytes((reg,)))
@@ -63,7 +68,10 @@ class BME680:
         i2c.write(self._addr, bytes((reg, value)))
 
     def read(self):
-        """Measure once. Returns (°C, Pa, %, gas Ω); gas is None if the heater was not stable."""
+        """Measure once. Returns (°C, Pa, %, gas Ω); gas is None if the heater was not stable.
+
+        Returns None if the values are not valid. Raises OSError if the sensor does not answer.
+        """
         self._write(0x74, 0x54 | 1)  # temperature x2, pressure x16, forced mode
         sleep(self._wait)
         for _ in range(50):
@@ -72,13 +80,18 @@ class BME680:
                 break
             sleep(10)
         else:
-            raise OSError("BME680 measurement timeout")
+            raise OSError(110)  # ETIMEDOUT: no new data
+        if d[8] == 0x80 and d[9] == 0:  # humidity skipped: the sensor lost its settings (reset)
+            self._setup()
+            return None
         temp = self._temp(d[5] << 12 | d[6] << 4 | d[7] >> 4)
         press = self._press(d[2] << 12 | d[3] << 4 | d[4] >> 4)
+        if not (-4000 <= temp <= 8500 and 30000 <= press <= 110000):  # datasheet range
+            return None
         hum = self._hum(d[8] << 8 | d[9])
         g = d[15:17] if self._high else d[13:15]
         gas = None
-        if self._gas_on and g[1] & 0x30 == 0x30:  # gas valid and heater stable
+        if self._heat and g[1] & 0x30 == 0x30:  # gas valid and heater stable
             gas = self._gas(g[0] << 2 | g[1] >> 6, g[1] & 0x0F)
         return temp / 100, press, hum / 1000, gas
 

@@ -82,4 +82,4 @@ def test_sonar():
     pin.pulse = 617  # echo of an object at ~10.6 cm
     assert sonar.distance_cm(pin) == 11
     pin.pulse = -1  # timeout, no echo
-    assert sonar.distance_cm(pin) == -1
+    assert sonar.distance_cm(pin) is None

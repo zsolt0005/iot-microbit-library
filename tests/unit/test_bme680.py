@@ -141,3 +141,27 @@ def test_without_gas_is_shorter(monkeypatch):
     sensor(BME680, 0).read()
     sensor(BME680, 0, gas=False).read()
     assert waits == [200, 45]
+
+
+def test_reset_sensor_is_invalid_and_set_up_again():
+    raw = BME680["raw"]
+    s = sensor(dict(BME680, raw=raw[:8] + bytes((0x80, 0)) + raw[10:]), 0)  # humidity skipped
+    i2c.writes.clear()
+    assert s.read() is None
+    assert (0x76, bytes((0x72, 0x01))) in i2c.writes  # settings written again
+    assert (0x76, bytes((0x71, 0x10))) in i2c.writes
+
+
+def test_value_out_of_range_is_invalid():
+    s = sensor(BME680, 0)
+    s._t1 = 0  # wrong calibration: temperature far above 85 °C
+    assert s.read() is None
+
+
+def test_no_new_data_raises_timeout(monkeypatch):
+    s = sensor(BME680, 0)
+    i2c.regs[(0x76, 0x1D)] = bytes(17)  # new data bit never set
+    monkeypatch.setattr(bme680, "sleep", lambda ms: None)
+    with pytest.raises(OSError) as e:
+        s.read()
+    assert e.value.args[0] == 110
