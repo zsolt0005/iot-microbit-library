@@ -199,7 +199,28 @@ import uv
 print(uv.intensity(pin1))
 ```
 
-## Servo and display
+### MQ-5
+
+Gas sensor module for LPG and natural gas (analog), powered from 5 V with a common ground.
+AO gives up to 5 V, so connect it through a voltage divider: 10 kΩ from AO to the pin,
+20 kΩ from the pin to GND (`divider` = (10 + 20) / 20 = 1.5). Do not connect DO (pulled up to
+5 V). After power on the sensor needs a few minutes to settle, 24–48 h the first time.
+
+**Methods**
+- `raw(pin)` – raw ADC value (0–1023)
+- `volts(pin, divider=1.5)` – voltage on AO, `None` when the sensor has no power
+- `detect(pin, threshold=1.5, divider=1.5)` – `True` when AO reaches `threshold` volts,
+  `None` when the value is not valid
+
+```python
+import mq5
+
+print(mq5.volts(pin1), "V")            # ~0.25 V in clean air, ~4.5 V with gas
+if mq5.detect(pin1, threshold=1.5):
+    print("gas")
+```
+
+## Servo, relay and display
 
 ### Servo
 
@@ -216,6 +237,25 @@ import servo
 servo.write(pin1, 45)
 servo.release(pin1)
 servo.home(pin1)
+```
+
+### Relay
+
+Relay module with a signal input (S), switched by a high level, powered from 5 V with a
+common ground. Connect the device to COM and NO, so it is off when the relay is off.
+The state cannot be read back from the pin, so the program keeps it.
+
+**Methods**
+- `set(pin, state)` – on (`True`, COM–NO closed) or off (`False`)
+- `on(pin)` – switch on
+- `off(pin)` – switch off; call it at start for a safe state
+
+```python
+import relay
+
+relay.off(pin16)          # safe state at start
+relay.set(pin16, True)
+relay.on(pin16)
 ```
 
 ### OLED

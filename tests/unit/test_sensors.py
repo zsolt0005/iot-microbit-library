@@ -6,8 +6,10 @@ import math
 from conftest import FakePin
 
 import dust
+import mq5
 import noise
 import pir
+import relay
 import servo
 import soil
 import sonar
@@ -83,3 +85,32 @@ def test_sonar():
     assert sonar.distance_cm(pin) == 11
     pin.pulse = -1  # timeout, no echo
     assert sonar.distance_cm(pin) is None
+
+
+def test_relay_set_on_off():
+    pin = FakePin()
+    relay.set(pin, True)
+    relay.set(pin, False)
+    relay.on(pin)
+    relay.off(pin)
+    assert pin.written == [1, 0, 1, 0]
+
+
+def test_mq5_volts_through_divider():
+    assert mq5.raw(FakePin(971)) == 971
+    assert mq5.volts(FakePin(1023)) == 3.3 * 1.5
+    assert abs(mq5.volts(FakePin(50), divider=1.5015) - 0.242) < 0.001  # clean air, measured
+
+
+def test_mq5_without_power_is_none():
+    for v in (0, 2, 5):
+        assert mq5.volts(FakePin(v)) is None, v
+        assert mq5.detect(FakePin(v)) is None, v
+    assert mq5.volts(FakePin(6)) is not None
+
+
+def test_mq5_detect_threshold():
+    assert mq5.detect(FakePin(50)) is False  # 0.24 V, clean air
+    assert mq5.detect(FakePin(310)) is True  # 1.5 V on AO
+    assert mq5.detect(FakePin(309)) is False
+    assert mq5.detect(FakePin(905), threshold=5.0) is False
