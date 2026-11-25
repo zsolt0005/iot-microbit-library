@@ -1,18 +1,25 @@
-"""Upload library files to a micro:bit, optionally minified.
+"""Upload a program and the local modules it imports to a micro:bit, minified.
+
+The program is uploaded as main.py (the file the micro:bit runs after start-up).
+Its imports are found in the code, recursively; modules built into the firmware
+(microbit, utime, ...) are not files here, so they are skipped. Before uploading,
+.py files on the micro:bit that the program does not need are deleted; other files
+(data written by the node) are kept.
 
 Minifying removes comments and docstrings and uses one space per indentation
 level. The micro:bit stores .py files as text in a ~20 kB file system, so this
 saves flash space; RAM use after import does not change.
 
 Usage (from the microbit/ folder):
-    uv run python tools/upload.py wifi.py http.py            # minified
-    uv run python tools/upload.py --plain wifi.py            # as is
-    uv run python tools/upload.py --size *.py                # only print sizes
-    uv run python tools/upload.py bench.py:main.py           # upload under another name
+    uv run python tools/upload.py              # main.py and its imports
+    uv run python tools/upload.py bench.py     # bench.py as main.py and its imports
+    uv run python tools/upload.py --plain      # as is, not minified
+    uv run python tools/upload.py --size       # only print the files and sizes
 """
 
 import ast
 import glob
+import os
 import sys
 import time
 
@@ -35,8 +42,37 @@ def minify(source):
     lines = []
     for line in ast.unparse(tree).splitlines():
         stripped = line.lstrip(" ")
-        lines.append(" " * ((len(line) - len(stripped)) // 4) + stripped)
+        if stripped:  # ast.unparse adds blank lines between definitions
+            lines.append(" " * ((len(line) - len(stripped)) // 4) + stripped)
     return "\n".join(lines) + "\n"
+
+
+FS_SIZE = 20096  # measured: bytes of .py text that fit into the micro:bit file system
+
+
+def imports(source):
+    """Names of all modules imported anywhere in source (also inside functions and try)."""
+    names = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names += [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names.append(node.module)
+    return names
+
+
+def deps(entry):
+    """entry and the local modules it needs, recursively: [(local path, name on micro:bit)]."""
+    folder = os.path.dirname(entry)
+    found, todo = {entry: "main.py"}, [entry]
+    while todo:
+        for name in imports(open(todo.pop(), encoding="utf-8").read()):
+            path = os.path.join(folder, name + ".py")
+            if os.path.exists(path) and path not in found and name != "main":
+                found[path] = name + ".py"
+                todo.append(path)
+    entry_item = [(entry, "main.py")]
+    return sorted((p, r) for p, r in found.items() if p != entry) + entry_item
 
 
 def find_port():
@@ -71,16 +107,20 @@ def upload(files, plain):
     time.sleep(0.5)
     if b"raw REPL" not in s.read_all():
         sys.exit("could not enter the micro:bit REPL")
-    for item in files:
-        local, _, remote = item.partition(":")
-        remote = remote or local.rsplit("/", 1)[-1]
+    keep = [remote for _, remote in files]
+    on_device = raw_exec(s, "import os;print(' '.join(os.listdir()))").split()
+    for name in on_device:
+        if name.endswith(".py") and name not in keep:
+            raw_exec(s, "os.remove(%r)" % name)
+            print("%-16s deleted" % name)
+    for local, remote in files:
         text = open(local, encoding="utf-8").read()
         data = (text if plain else minify(text)).encode()
         raw_exec(s, "f=open(%r,'wb')" % remote)
         for i in range(0, len(data), 128):
             raw_exec(s, "f.write(%r)" % data[i : i + 128])
         raw_exec(s, "f.close()")
-        size = int(raw_exec(s, "import os;print(os.size(%r))" % remote))
+        size = int(raw_exec(s, "print(os.size(%r))" % remote))
         if size != len(data):
             sys.exit("%s: size mismatch %d != %d" % (remote, size, len(data)))
         print("%-16s %6d B -> %6d B" % (remote, len(text.encode()), size))
@@ -90,16 +130,28 @@ def upload(files, plain):
 def main():
     args = sys.argv[1:]
     plain = "--plain" in args
-    only_size = "--size" in args
-    files = [a for a in args if not a.startswith("--")]
-    if not files:
+    names = [a for a in args if not a.startswith("--")]
+    entry = names[0] if names else "main.py"
+    if len(names) > 1 or not os.path.exists(entry):
         sys.exit(__doc__)
-    if only_size:
-        for f in files:
-            text = open(f.partition(":")[0], encoding="utf-8").read()
-            print("%-16s %6d B -> %6d B" % (f, len(text.encode()), len(minify(text).encode())))
+    files = deps(entry)
+    used = [n for local, _ in files for n in imports(open(local, encoding="utf-8").read())]
+    if "config" in used and not os.path.exists(os.path.join(os.path.dirname(entry), "config.py")):
+        sys.exit("config.py is missing - copy config.example.py and fill in your values")
+    total = 0
+    for local, _ in files:
+        text = open(local, encoding="utf-8").read()
+        total += len((text if plain else minify(text)).encode())
+    print("%d files, %d B of ~%d B" % (len(files), total, FS_SIZE))
+    if total > FS_SIZE:
+        sys.exit("does not fit into the micro:bit file system")
+    if "--size" in args:
+        for local, remote in files:
+            text = open(local, encoding="utf-8").read()
+            print("%-16s %6d B -> %6d B" % (remote, len(text.encode()), len(minify(text).encode())))
         return
     upload(files, plain)
 
 
-main()
+if __name__ == "__main__":
+    main()
